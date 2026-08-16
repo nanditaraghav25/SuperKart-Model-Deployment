@@ -1,53 +1,136 @@
 
-# Import necessary libraries
-import numpy as np
-import joblib
+import streamlit as st
 import pandas as pd
-from flask import Flask, request, jsonify
+import requests
 
-# Initialize Flask app
-superkart_api = Flask("SuperKart_Sales_API")
+# Base URL of the Flask backend
+BACKEND_URL = "http://backend:7860"
 
-# Load the trained sales prediction model
-model = joblib.load("backend_files/superkart_rf_tuned.joblib")
+# Set the title of the Streamlit app
+st.title("SuperKart Sales Prediction")
 
-# Define a route for the home page
-@superkart_api.get('/')
-def home():
-    return "Welcome to the SuperKart Sales Prediction API"
+# Section for online prediction
+st.subheader("Online Sales Prediction")
 
-# Define an endpoint to predict sales
-@superkart_api.post('/v1/predict')
-def predict_sales():
+# Collect user inputs
+product_weight = st.number_input(
+    "Product Weight",
+    min_value=0.0,
+    value=12.0
+)
 
-    # Get JSON data from the request
-    data = request.get_json()
+product_sugar_content = st.selectbox(
+    "Product Sugar Content",
+    ["Low Sugar", "Regular", "No Sugar"]
+)
 
-    # Extract features in the same format used during model training
-    sample = {
-        'Product_Weight': data['Product_Weight'],
-        'Product_Sugar_Content': data['Product_Sugar_Content'],
-        'Product_Allocated_Area': data['Product_Allocated_Area'],
-        'Product_Type': data['Product_Type'],
-        'Product_MRP': data['Product_MRP'],
-        'Store_Id': data['Store_Id'],
-        'Store_Size': data['Store_Size'],
-        'Store_Location_City_Type': data['Store_Location_City_Type'],
-        'Store_Type': data['Store_Type'],
-        'Product_Id_Prefix': data['Product_Id_Prefix'],
-        'Store_Age': data['Store_Age']
-    }
+product_allocated_area = st.number_input(
+    "Product Allocated Area",
+    min_value=0.0,
+    value=0.05,
+    format="%.3f"
+)
 
-    # Convert input into DataFrame
-    input_data = pd.DataFrame([sample])
+product_type = st.selectbox(
+    "Product Type",
+    [
+        "Baking Goods",
+        "Breads",
+        "Breakfast",
+        "Canned",
+        "Dairy",
+        "Frozen Foods",
+        "Fruits and Vegetables",
+        "Hard Drinks",
+        "Health and Hygiene",
+        "Household",
+        "Meat",
+        "Others",
+        "Seafood",
+        "Snack Foods",
+        "Soft Drinks",
+        "Starchy Foods"
+    ]
+)
 
-    # Make sales prediction
-    prediction = model.predict(input_data).tolist()[0]
+product_mrp = st.number_input(
+    "Product MRP",
+    min_value=0.0,
+    value=150.0
+)
 
-    # Return prediction as JSON
-    return jsonify({'Sales': prediction})
+store_id = st.selectbox(
+    "Store ID",
+    ["OUT001", "OUT002", "OUT003", "OUT004"]
+)
 
+store_size = st.selectbox(
+    "Store Size",
+    ["Small", "Medium", "High"]
+)
 
-# Run Flask application
-if __name__ == '__main__':
-    superkart_api.run(debug=True)
+store_location = st.selectbox(
+    "Store Location City Type",
+    ["Tier 1", "Tier 2", "Tier 3"]
+)
+
+store_type = st.selectbox(
+    "Store Type",
+    [
+        "Departmental Store",
+        "Supermarket Type 1",
+        "Supermarket Type 2",
+        "Food Mart"
+    ]
+)
+
+product_id_prefix = st.text_input(
+    "Product ID Prefix",
+    value="FD"
+)
+
+store_age = st.number_input(
+    "Store Age",
+    min_value=0,
+    value=17
+)
+
+# Create input dictionary
+input_data = {
+    "Product_Weight": product_weight,
+    "Product_Sugar_Content": product_sugar_content,
+    "Product_Allocated_Area": product_allocated_area,
+    "Product_Type": product_type,
+    "Product_MRP": product_mrp,
+    "Store_Id": store_id,
+    "Store_Size": store_size,
+    "Store_Location_City_Type": store_location,
+    "Store_Type": store_type,
+    "Product_Id_Prefix": product_id_prefix,
+    "Store_Age": store_age
+}
+
+# Make prediction when Predict button is clicked
+if st.button("Predict Sales", type="primary"):
+
+    try:
+        response = requests.post(
+            f"{BACKEND_URL}/v1/predict",
+            json=input_data
+        )
+
+        if response.status_code == 200:
+
+            prediction = response.json()["Sales"]
+
+            st.success(
+                f"Predicted Product Sales: ${prediction:,.2f}"
+            )
+
+        else:
+            st.error(
+                f"Prediction API returned error: {response.status_code}"
+            )
+
+    except requests.exceptions.RequestException:
+        st.error("Unable to connect to the prediction API.")
